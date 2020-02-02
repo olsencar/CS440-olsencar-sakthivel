@@ -4,7 +4,7 @@
 #include <string>
 #include <sstream>
 #include <cstring>
-
+#include <assert.h>
 using namespace std;
 
 const string IDX_FILE_NAME = "EmployeeIndex.txt";
@@ -30,7 +30,7 @@ public:
 
 class Block {
 private:
-    const int blockCapacity = 4096;
+    static const int blockCapacity = 4096;
     int total_record_size;
     vector<Record> records;
 public:
@@ -129,9 +129,7 @@ public:
     }
 
     void generateIndexFile() {
-        ofstream idxFile;
-        idxFile.open(IDX_FILE_NAME, ios::out);
-        
+        ofstream idxFile(IDX_FILE_NAME.c_str(), ios::out);
         Block *cur = NULL;
         int total_record_size = 0;
         int overflow = 0;
@@ -149,6 +147,7 @@ public:
             }
             overflow = 0;
         }
+		idxFile.close();
     }
 
     LinearHashTable() {
@@ -209,11 +208,11 @@ void createIndex() {
 Record findRecordUsingIndex(string id) {
     LinearHashTable hashTab(1);
     string line;
-    vector<vector<Record>> table;        
+    vector<vector<Record> > table;        
     vector<Record> records;
 
     ifstream inFile;
-    inFile.open(IDX_FILE_NAME, ios::in);
+    inFile.open(IDX_FILE_NAME.c_str(), ios::in);
     int currentBlock = 0;
     while(getline(inFile, line)) {
         // ascii check
@@ -254,17 +253,23 @@ Record findRecordUsingIndex(string id) {
 }
 
 int main(int argc, char* argv[]) {
-    if (strcmp(argv[1], "C") == 0) {
-        createIndex();
-    } else if (strcmp(argv[1], "L") == 0) {
-        if (argc < 3 ) {
-            return 1;
-        }
+	if (argc > 1 && argc < 4) {
 
-        string id = argv[2];
-        Record r = findRecordUsingIndex(id);
-        r.printRecord();        
-    }
+  		if (strcmp(argv[1], "C") == 0) {
+     		createIndex();
+    	} else if (strcmp(argv[1], "L") == 0) {
+			string id = argv[2];
+        	Record r = findRecordUsingIndex(id);
+			if (r.id == "") {
+				cout << "No records found for " << id << endl;
+			} else {
+        		r.printRecord();        
+			}
+    	}
+	} else {
+		cerr << "Argument count not correct" << endl;
+		return 1;
+	}
 
     return 0;
 }
