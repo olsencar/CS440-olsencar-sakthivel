@@ -4,10 +4,23 @@
 #include <string>
 #include <sstream>
 #include <cstring>
-#include <assert.h>
+#include <sys/stat.h>
+#if defined(_WIN32) //_mkdir
+#include <direct.h>
+#endif
 using namespace std;
 
 const string IDX_FILE_NAME = "EmployeeIndex.txt";
+
+/* FROM Stack overflow to make dir cross platform */
+void makeDir(const string& path) {
+    #if defined(_WIN32)
+        int ret = _mkdir(path.c_str());
+    #else
+        mode_t mode = 0755;
+        int ret = mkdir(path.c_str(), mode);
+    #endif
+}
 
 class Record
 {
@@ -172,6 +185,7 @@ public:
     void generateIndexFile()
     {
         string fileName = "./indexed_relations/EmployeeIndex";
+        makeDir("indexed_relations");
         Block *cur = NULL;
         for (int i = 0; i < blocks.size(); i++)
         {
@@ -225,6 +239,8 @@ public:
         }
     }
 };
+
+
 
 void createIndex()
 {
