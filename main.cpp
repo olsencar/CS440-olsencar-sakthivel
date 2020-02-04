@@ -22,6 +22,13 @@ void makeDir(const string& path) {
     #endif
 }
 
+string getNullFilledString(string s, size_t length) {
+    for (size_t i = s.length(); i < length; i++) {
+        s += '\0';
+    }
+    return s;
+}
+
 class Record
 {
 public:
@@ -168,10 +175,13 @@ public:
         return totalRecordSize / float(blocks.size() * 4096);
     }
 
-    void generate_base_index_file()
+    void generate_index_file(vector<size_t> blockOffsets)
     {
         ofstream idxFile(IDX_FILE_NAME.c_str(), ios::out);
         idxFile << tableSize << endl;
+        for (size_t i = 0; i < blockOffsets.size(); i++) {
+            idxFile << blockOffsets[i] << endl;
+        }
         idxFile.close();
     }
 
@@ -182,27 +192,28 @@ public:
         return s.str();
     }
 
-    void generateIndexFile()
+    vector<size_t> createSortedFile()
     {
-        string fileName = "./indexed_relations/EmployeeIndex";
-        makeDir("indexed_relations");
+        const string fileName = "EmployeesSorted.txt";
+        ofstream sortedFile(fileName.c_str(), ios::out);
         Block *cur = NULL;
+        vector<size_t> blockOffsets; 
         for (int i = 0; i < blocks.size(); i++)
         {
-            string tempFileName = fileName + toString(i) + ".txt";
-            ofstream idxFile(tempFileName.c_str(), ios::out);
+            blockOffsets.push_back(sortedFile.tellp());
             cur = blocks[i];
             while (cur != NULL)
             {
                 vector<Record> records = cur->getRecords();
                 for (int j = 0; j < records.size(); j++)
                 {
-                    idxFile << records[j].id << "," << records[j].name << "," << records[j].bio << "," << records[j].manager_id << endl;
+                    sortedFile << getNullFilledString(records[j].id, 8) << getNullFilledString(records[j].name, 200) << getNullFilledString(records[j].bio, 500) << getNullFilledString(records[j].manager_id, 8) << endl;
                 }
                 cur = cur->next;
             }
-            idxFile.close();
         }
+        sortedFile.close();
+        return blockOffsets;
     }
 
     LinearHashTable()
@@ -269,51 +280,50 @@ void createIndex()
         tab.addRecord(r);
     }
     myFile.close();
-    tab.generate_base_index_file();
-    tab.generateIndexFile();
+    vector<size_t> blockOffsets = tab.createSortedFile();
+
+    tab.generate_index_file(blockOffsets);
 }
 
 Record findRecordUsingIndex(string id)
 {
     LinearHashTable hashTab(1);
     string line;
+    vector<size_t> blockOffsets;
     int tablesize = 0;
     Record r;
     r.id = "";
 
     ifstream inFile;
     inFile.open(IDX_FILE_NAME.c_str(), ios::in);
-    while (getline(inFile, line))
-    {
-        tablesize = line[0] - 48;
+    getline(inFile, line);
+    tablesize = stoi(line);
+    
+    while(getline(inFile, line)) {
+        blockOffsets.push_back((size_t)stoi(line));
     }
+
     inFile.close();
     int id_idx = hashTab.hash(id, tablesize);
-    string fileName = "./indexed_relations/EmployeeIndex" + hashTab.toString(id_idx) + ".txt";
-    cout << fileName << endl;
-    inFile.open(fileName.c_str(), ios::in);
+    size_t offset = blockOffsets[id_idx];
+
+    inFile.open("EmployeesSorted.txt", ios::in);
+    // go to location in file
+    inFile.seekg(offset, ios::beg);
+
     while (getline(inFile, line))
     {
-        istringstream iss(line);
-        string field;
-        string row[4];
-        int i = 0;
-        while (getline(iss, field, ','))
-        {
-            row[i++] = field;
+        const char *tempId = line.substr(0, 8).c_str();
+        
+        if (tempId == id) {
+            r.id = tempId;
+            r.name = line.substr(8, 200).c_str();
+            r.bio = line.substr(208, 500).c_str();
+            r.manager_id = line.substr(708, 8).c_str();
+            break;
         }
-
-        r.id = row[0];
-        r.name = row[1];
-        r.bio = row[2];
-        r.manager_id = row[3];
-        if (r.id == id)
-        {
-            inFile.close();
-            return r;
-        }
+        
     }
-    r.id = "";
     return r;
 }
 
