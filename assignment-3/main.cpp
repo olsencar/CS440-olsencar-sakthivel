@@ -5,6 +5,7 @@
 #include <sstream>
 #include <cstring>
 #include <sys/stat.h>
+#include <cstdlib>
 #if defined(_WIN32) //_mkdir
 #include <direct.h>
 #endif
@@ -297,10 +298,10 @@ Record findRecordUsingIndex(string id)
     ifstream inFile;
     inFile.open(IDX_FILE_NAME.c_str(), ios::in);
     getline(inFile, line);
-    tablesize = stoi(line);
+    tablesize = atoi(line.c_str());
     
     while(getline(inFile, line)) {
-        blockOffsets.push_back((size_t)stoi(line));
+        blockOffsets.push_back((size_t)atoi(line.c_str()));
     }
 
     inFile.close();
