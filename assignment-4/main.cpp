@@ -106,7 +106,6 @@ public:
 
 class MainMemory {
 private:
-    int size;
     int capacity;
     vector<unique_ptr<Block>> mem;
 
@@ -124,33 +123,52 @@ public:
 
     int getSize() { return mem.size(); }
 
-    bool addEmployee(Emp e) {
+    int addEmployee(Emp e) {
 		unique_ptr<Block> b(&e);
         mem.push_back(b);
-		if (capacityReached()) {
-			return false;
-		}
-		return true;
+		return capacity - mem.size();
     }
 
-    bool addDepartment(Dept d) {
+    int addDepartment(Dept d) {
 		unique_ptr<Block> b(&d);
         mem.push_back(b);
-		if (capacityReached()) {
-			return false;
-		}
-
-		return true;
+		return capacity - mem.size();
     }
 
+	void sortRun(int start, int end) {
+		mergeSort(mem, start, end);
+	}
+
     void writeRun(ofstream& outFile) {
-		mergeSort(mem, 0, static_cast<int>(mem.size() - 1));
+		sortRun(0, static_cast<int>(mem.size() - 1));
 		for (int i = 0; i < mem.size(); i++) {
 			outFile << mem[i]->getWritableRow() << endl;
 		}
 		outFile << RUN_SEPARATOR << endl;
 		mem.clear();
     }
+	void mergeAndJoinRuns(int middle, ofstream& outfile) {
+
+		// initial indexes of first and second subarrays
+		int leftIndex = 0, rightIndex = middle;
+
+		// the index we will start at when adding the subarrays back into the main array
+		int currentIndex = 0;
+
+		// compare each index of the subarrays adding the lowest value to the currentIndex
+		while (leftIndex < middle && rightIndex < mem.size()) {
+			if (mem[leftIndex]->id > mem[rightIndex]->id) {
+				rightIndex++;
+			}
+			else if (mem[leftIndex]->id < mem[rightIndex]->id) {
+				leftIndex++;
+			}
+			else {
+				// write the join
+			}
+		}
+	}
+
 };
 
 void merge(vector<unique_ptr<Block>>& arr, int start, int middle, int end) {
@@ -208,25 +226,61 @@ void mergeSort(vector<unique_ptr<Block>>& arr, int start, int end) {
 	}
 }
 
+int getAllRuns(const int idx, MainMemory& mem, ifstream& empFile, ifstream& deptFile) {
+	string line;
+	int i = 0;
+	Emp e;
+	Dept d;
+
+	// Gets the blocks for empFile that are at index = idx in their runs
+    while (getline(empFile, line)) {
+		if (i == idx) {
+			e.parseRow(line);
+			// If we are at 11 blocks left, then stop
+			if (mem.addEmployee(e) == MM_BLOCKS / 2) {
+				break;
+			}
+		} else {
+			if (line == RUN_SEPARATOR) {
+				i = 0;
+				continue;
+			} else {
+				++i;
+			}
+		}
+	}
+	int start = mem.getSize();
+	mem.sortRun(0, mem.getSize() - 1);  
+
+	// Gets the blocks for deptFile that are at index = idx in their runs
+    while (getline(deptFile, line)) {
+		if (i == idx) {
+			d.parseRow(line);
+			// If we have 1 block left in memory, stop
+			if (mem.addDepartment(d) == 1) {
+				break;
+			}
+		} else {
+			if (line == RUN_SEPARATOR) {
+				i = 0;
+			} else {
+				++i;
+			}
+		}
+	} 
+	mem.sortRun(start, mem.getSize() - 1);
+	return start;	
+}
+
+
 void sortMergeJoin(MainMemory& mem, ifstream& empFile, ifstream& deptFile, ofstream& joinFile) {
     string empLine;
     string deptLine;
     Emp e;
     Dept d;
 
-    // We can only fit Emp and Dept into 22 MM blocks
-    // Memory requirement: B(R) + B(S) <= M^2
-    // Since 1 record = 1 Block, then NumRows(Emp) + NumRows(Dept) <= 484
-
-    while (getline(empFile, empLine) && getline(deptFile, deptLine)) {
-        e.parseRow(empLine);
-        d.parseRow(deptLine);
-        mem.addEmployee(e);
-        mem.addDepartment(d);
-
-    }
-    empFile.close();
-    deptFile.close();
+	int middle = getAllRuns(0, mem, empFile, deptFile);
+	mem.mergeAndJoinRuns(middle, joinFile);
 }
 
 int main (int argc, char* argv[]) {
@@ -237,7 +291,6 @@ int main (int argc, char* argv[]) {
 	ofstream joinFile;
 
 	string line;
-	bool maxMem = false;
 	Emp e;
 	Dept d;
 	MainMemory mMemory(MM_BLOCKS);
@@ -245,8 +298,7 @@ int main (int argc, char* argv[]) {
 	// Create sorted runs for Emp relation
 	while (getline(empFile, line)) {
 		e.parseRow(line);
-		maxMem = mMemory.addEmployee(e);
-		if (maxMem) {
+		if (mMemory.addEmployee(e) == 0) {
 			mMemory.writeRun(oEmpFile);
 		}
 	}
@@ -259,8 +311,7 @@ int main (int argc, char* argv[]) {
 	// Create sorted runs for Dept relation
 	while (getline(deptFile, line)) {
 		d.parseRow(line);
-		maxMem = mMemory.addDepartment(d);
-		if (maxMem) {
+		if (mMemory.addDepartment(d) == 0) {
 			mMemory.writeRun(oEmpFile);
 		}
 	}
