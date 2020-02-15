@@ -3,22 +3,42 @@
 #include <sstream>
 #include <vector>
 #include <fstream>
-#include <bits/stdc++.h>
 
-#define INTEGER_SIZE 4
-#define DOUBLE_SIZE 8
-#define STRING_SIZE 40
-#define MM_BLOCKS 22
-#define MM_BLOCKS_SQRD 484
-
+constexpr int INTEGER_SIZE = 4;
+constexpr int DOUBLE_SIZE = 8;
+constexpr int STRING_SIZE = 40;
+constexpr int MM_BLOCKS = 22;
+constexpr int MM_BLOCKS_SQRD = 484;
+constexpr char EMP_INPUT_FILENAME[] = "Emp.csv";
+constexpr char DEPT_INPUT_FILENAME[] = "Dept.csv";
+constexpr char EMP_OUTPUT_FILENAME[] = "EmpOut.text";
+constexpr char DEPT_OUTPUT_FILENAME[] = "DeptOut.text";
+constexpr char JOIN_OUTPUT_FILENAME[] = "join.csv";
+constexpr char RUN_SEPARATOR[] = "===========";
 using namespace std;
 
-class Dept {
+class Block {
 public:
-    int did;
+    int id;
+    virtual void parseRow(string) = 0;
+    virtual void setAttributes(string[4]) = 0;
+	virtual string getWritableRow() = 0;
+};
+
+class Dept : public Block {
+public:
+	int did;
     string dname;
     double budget;
-    int managerid;
+
+	Dept() {}
+
+	void setDept(Dept d) {
+		did = d.did;
+		dname = d.dname;
+		budget = d.budget;
+		id = d.id;
+	}
 
     void parseRow(string line) {
         string row[4];
@@ -36,16 +56,28 @@ public:
         did = atoi(row[0].c_str());
         dname = row[1];
         budget = atof(row[2].c_str());
-        managerid = atoi(row[3].c_str());
+        id = atoi(row[3].c_str());
     }
+
+	string getWritableRow() {
+		return did + "," + dname + "," + to_string(budget) + "," + to_string(id);
+	}
 };
 
-class Emp {
+class Emp : public Block {
 public:
-    int eid;
     string ename;
     int age;
     double salary;
+
+	Emp() { }
+
+	void setEmp(Emp e) {
+		id = e.id;
+		ename = e.ename;
+		age = e.age;
+		salary = e.salary;
+	}
 
     void parseRow(string line) {
         string row[4];
@@ -61,82 +93,126 @@ public:
     }
 
     void setAttributes(string row[4]) {
-        eid = atoi(row[0].c_str());
+        id = atoi(row[0].c_str());
         ename = row[1];
         age = atoi(row[2].c_str());
         salary = atof(row[3].c_str());
     }
-};
 
+	string getWritableRow() {
+		return id + "," + ename + "," + to_string(age) + "," + to_string(salary);
+	}
+};
 
 class MainMemory {
 private:
     int size;
     int capacity;
-    vector<Emp> employees;
-    vector<Dept> departments;
+    vector<unique_ptr<Block>> mem;
 
-    void checkForCapacityReached() {
-        if (size == capacity - 1) {
-            // We have reached the max capacity
-            sort(employees.begin(), employees.end(), less_than_key_emp());
-            sort(departments.begin(), departments.end(), less_than_key_dept());
-    
-            // Now that both are sorted, we merge them ?
-        }
-    }
-
+	bool capacityReached() {
+		if (mem.size() == capacity) {
+			return true;
+		}
+		return false;
+	}
 
 public:
     MainMemory(int cap) {
         capacity = cap;
     }
 
-    int getSize() { return size; }
-    vector<Emp> getEmployees() { return employees; }
-    vector<Dept> getDepartments() { return departments; }
+    int getSize() { return mem.size(); }
 
-    void addEmployee(Emp e) {
-        employees.push_back(e);
-        size++;
-        checkForCapacityReached();
+    bool addEmployee(Emp e) {
+		unique_ptr<Block> b(&e);
+        mem.push_back(b);
+		if (capacityReached()) {
+			return false;
+		}
+		return true;
     }
 
-    void addDepartment(Dept d) {
-        departments.push_back(d);
-        size++;
-        checkForCapacityReached();
-    }
-};
+    bool addDepartment(Dept d) {
+		unique_ptr<Block> b(&d);
+        mem.push_back(b);
+		if (capacityReached()) {
+			return false;
+		}
 
-struct less_than_key_emp {
-    inline bool operator() (const Emp& e, const Emp& e2) {
-        return (e.eid < e2.eid);
+		return true;
     }
-};
 
-struct less_than_key_dept {
-    inline bool operator() (const Dept& d, const Dept& d2) {
-        return (d.did < d2.did);
-    }
-};
-
-struct less_than_key_dept_emp {
-    inline bool operator() (const Dept& d, const Emp& e) {
-        return (d.did < e.eid);
+    void writeRun(ofstream& outFile) {
+		mergeSort(mem, 0, static_cast<int>(mem.size() - 1));
+		for (int i = 0; i < mem.size(); i++) {
+			outFile << mem[i]->getWritableRow() << endl;
+		}
+		outFile << RUN_SEPARATOR << endl;
+		mem.clear();
     }
 };
 
-vector<Emp> readFiles(MainMemory& mem, string empFileName, string deptFileName) {
-    ifstream empFile(empFileName);
-    ifstream deptFile(deptFileName);
+void merge(vector<unique_ptr<Block>>& arr, int start, int middle, int end) {
+
+	vector<Block> leftArray(middle - start + 1);
+	vector<Block> rightArray(end - middle);
+
+	// fill in left array
+	for (int i = 0; i < leftArray.size(); ++i)
+		leftArray[i] = *arr[start + i];
+
+	// fill in right array
+	for (int i = 0; i < rightArray.size(); ++i)
+		rightArray[i] = *arr[middle + 1 + i];
+
+	/* Merge the temp arrays */
+
+	// initial indexes of first and second subarrays
+	int leftIndex = 0, rightIndex = 0;
+
+	// the index we will start at when adding the subarrays back into the main array
+	int currentIndex = start;
+
+	// compare each index of the subarrays adding the lowest value to the currentIndex
+	while (leftIndex < leftArray.size() && rightIndex < rightArray.size()) {
+		if (leftArray[leftIndex].id <= rightArray[rightIndex].id) {
+			arr[currentIndex].reset(&leftArray[leftIndex]);
+			leftIndex++;
+		}
+		else {
+			arr[currentIndex].reset(&rightArray[rightIndex]);
+			rightIndex++;
+		}
+		currentIndex++;
+	}
+
+	// copy remaining elements of leftArray[] if any
+	while (leftIndex < leftArray.size()) arr[currentIndex++].reset(&leftArray[leftIndex++]);
+
+	// copy remaining elements of rightArray[] if any
+	while (rightIndex < rightArray.size()) arr[currentIndex++].reset(&rightArray[rightIndex++]);
+}
+
+void mergeSort(vector<unique_ptr<Block>>& arr, int start, int end) {
+	// base case
+	if (start < end) {
+		// find the middle point
+		int middle = (start + end) / 2;
+
+		mergeSort(arr, start, middle); // sort first half
+		mergeSort(arr, middle + 1, end);  // sort second half
+
+		// merge the sorted halves
+		merge(arr, start, middle, end);
+	}
+}
+
+void sortMergeJoin(MainMemory& mem, ifstream& empFile, ifstream& deptFile, ofstream& joinFile) {
     string empLine;
     string deptLine;
     Emp e;
     Dept d;
-    // Ignore the CSV headers in each file
-    getline(empFile, empLine);
-    getline(deptFile, deptLine);
 
     // We can only fit Emp and Dept into 22 MM blocks
     // Memory requirement: B(R) + B(S) <= M^2
@@ -154,6 +230,56 @@ vector<Emp> readFiles(MainMemory& mem, string empFileName, string deptFileName) 
 }
 
 int main (int argc, char* argv[]) {
+	ifstream empFile(EMP_INPUT_FILENAME);
+	ifstream deptFile(DEPT_INPUT_FILENAME);
+	ofstream oEmpFile(EMP_OUTPUT_FILENAME);
+	ofstream oDeptFile(DEPT_OUTPUT_FILENAME);
+	ofstream joinFile;
 
+	string line;
+	bool maxMem = false;
+	Emp e;
+	Dept d;
+	MainMemory mMemory(MM_BLOCKS);
+
+	// Create sorted runs for Emp relation
+	while (getline(empFile, line)) {
+		e.parseRow(line);
+		maxMem = mMemory.addEmployee(e);
+		if (maxMem) {
+			mMemory.writeRun(oEmpFile);
+		}
+	}
+	if (mMemory.getSize() > 0) {
+		mMemory.writeRun(oEmpFile);
+	}
+	empFile.close();
+	oEmpFile.close();
+
+	// Create sorted runs for Dept relation
+	while (getline(deptFile, line)) {
+		d.parseRow(line);
+		maxMem = mMemory.addDepartment(d);
+		if (maxMem) {
+			mMemory.writeRun(oEmpFile);
+		}
+	}
+	if (mMemory.getSize() > 0) {
+		mMemory.writeRun(oDeptFile);
+	}
+	deptFile.close();
+	oDeptFile.close();
+
+	// Join and merge runs 
+	empFile.open(EMP_OUTPUT_FILENAME);
+	deptFile.open(DEPT_OUTPUT_FILENAME);
+	joinFile.open(JOIN_OUTPUT_FILENAME);
+
+	sortMergeJoin(mMemory, empFile, deptFile, joinFile);
+
+
+	empFile.close();
+	deptFile.close();
+	joinFile.close();
     return 0;
 }
