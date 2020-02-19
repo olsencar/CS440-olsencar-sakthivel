@@ -352,7 +352,7 @@ public:
 			mergeSort(empRuns, 0, empRuns.size() - 1);
 			for (int k = 0; k < deptRuns.size(); k++) {
 				mergeSort(deptRuns, 0, deptRuns.size() - 1);
-				if (empRuns[i] && deptRuns[k]) {
+				if (empRuns[i]->data && deptRuns[k]->data) {
 					if (empRuns[i]->data->id < deptRuns[k]->data->id) {
 						temp = empRuns[i]->data;
 						empRuns[i]->data = readNextInRun(*empRuns[i]->filePtr, true);
