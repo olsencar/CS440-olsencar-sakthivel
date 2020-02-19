@@ -3,7 +3,6 @@
 #include <sstream>
 #include <vector>
 #include <fstream>
-#include <memory>
 
 constexpr int INTEGER_SIZE = 4;
 constexpr int DOUBLE_SIZE = 8;
@@ -43,6 +42,8 @@ public:
 		budget = d.budget;
 		id = d.id;
 	}
+
+
 
     void parseRow(string line) {
         string row[4];
@@ -299,10 +300,30 @@ void sortMergeJoin(MainMemory& mem, ifstream& empFile, ifstream& deptFile, ofstr
     string empLine;
     string deptLine;
 	
-	int middle = getAllRuns(i, mem, empFile, deptFile);
+	int middle = getAllRuns(0, mem, empFile, deptFile);
 	mem.mergeAndJoinRuns(middle, joinFile);
 	
 }
+
+
+// Create file for each run (with its own file pointer)
+// Create a vector of file pointers
+/* for each empid in empPointers
+		sortDeptPointers()
+		for each managerid in deptPointers
+			if empid < managerid
+				incrementEmployeeRunPointer
+			else if empid > managerid
+				incrementRunPointerForDept
+				empPointer--;
+				break
+			else if empid == managerid
+				outputJoin
+				incrementRunPointerForDept
+				managerId--;
+
+
+*/
 
 int main (int argc, char* argv[]) {
 	ifstream empFile;
