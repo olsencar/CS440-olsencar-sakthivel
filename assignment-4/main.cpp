@@ -3,19 +3,20 @@
 #include <sstream>
 #include <vector>
 #include <fstream>
-
-constexpr int INTEGER_SIZE = 4;
-constexpr int DOUBLE_SIZE = 8;
-constexpr int STRING_SIZE = 40;
-constexpr int MM_BLOCKS = 22;
-constexpr int MM_BLOCKS_SQRD = 484;
-constexpr char EMP_INPUT_FILENAME[] = "Emp.csv";
-constexpr char DEPT_INPUT_FILENAME[] = "Dept.csv";
-constexpr char EMP_OUTPUT_FILENAME[] = "EmpOut.";
-constexpr char DEPT_OUTPUT_FILENAME[] = "DeptOut.";
-constexpr char JOIN_OUTPUT_FILENAME[] = "join.csv";
-constexpr char RUN_SEPARATOR[] = "===========";
+#include <cstdlib>
 using namespace std;
+
+const int INTEGER_SIZE = 4;
+const int DOUBLE_SIZE = 8;
+const int STRING_SIZE = 40;
+const int MM_BLOCKS = 22;
+const int MM_BLOCKS_SQRD = 484;
+const string EMP_INPUT_FILENAME = "Emp.csv";
+const string DEPT_INPUT_FILENAME = "Dept.csv";
+const string EMP_OUTPUT_FILENAME = "EmpOut.";
+const string DEPT_OUTPUT_FILENAME = "DeptOut.";
+const string JOIN_OUTPUT_FILENAME = "join.csv";
+const string RUN_SEPARATOR = "===========";
 
 class Block {
 public:
@@ -63,7 +64,9 @@ public:
     }
 
 	string getWritableRow() {
-		return to_string(did) + "," + dname + "," + to_string(budget) + "," + to_string(id);
+		ostringstream s;
+		s << did << "," << dname << "," << budget << "," << id;
+		return s.str();
 	}
 };
 
@@ -106,7 +109,9 @@ public:
     }
 
 	string getWritableRow() {
-		return to_string(id) + "," + ename + "," + to_string(age) + "," + to_string(salary);
+		ostringstream s;
+		s << id << "," << ename << "," << age << "," << salary;
+		return s.str();
 	}
 };
 
@@ -333,7 +338,7 @@ public:
 				return d;
 			}
 		}
-		return nullptr;
+		return NULL;
 	}
 
 	void sortMergeJoin(vector<RunPointer*>& empRuns, vector<RunPointer*>& deptRuns, ofstream& joinFile) {
@@ -401,60 +406,64 @@ int main (int argc, char* argv[]) {
 	vector<RunPointer*> deptRuns;
 	int empRunCount = 0, deptRunCount = 0;
 
-	empFile.open(EMP_INPUT_FILENAME, ios::in);
+	empFile.open(EMP_INPUT_FILENAME.c_str(), ios::in);
 	
 	// Create sorted runs for Emp relation
 	while (getline(empFile, line)) {
 		Emp *e = new Emp();
 		e->parseRow(line);
 		if (mMemory.addEmployee(e) == 0) {
-			string fileName = (string)EMP_OUTPUT_FILENAME + "r" + to_string(empRunCount) + ".txt";
-			ofstream outRun(fileName.c_str(), ios::out);
+			ostringstream fileName; 
+			fileName << EMP_OUTPUT_FILENAME << "r" << empRunCount << ".txt";
+			ofstream outRun(fileName.str().c_str(), ios::out);
 			mMemory.writeRun(outRun);
 			outRun.close();
 
-			empRuns.push_back(new RunPointer(new ifstream(fileName.c_str(), ios::in)));
+			empRuns.push_back(new RunPointer(new ifstream(fileName.str().c_str(), ios::in)));
 			empRunCount++;
 		}
 	}
 	if (mMemory.getSize() > 0) {
-		string fileName = (string)EMP_OUTPUT_FILENAME + "r" + to_string(empRunCount) + ".txt";
-		ofstream outRun(fileName.c_str(), ios::out);
+		ostringstream fileName; 
+		fileName << EMP_OUTPUT_FILENAME << "r" << empRunCount << ".txt";
+		ofstream outRun(fileName.str().c_str(), ios::out);
 		mMemory.writeRun(outRun);
 		outRun.close();
 
-		empRuns.push_back(new RunPointer(new ifstream(fileName.c_str(), ios::in)));
+		empRuns.push_back(new RunPointer(new ifstream(fileName.str().c_str(), ios::in)));
 		empRunCount++;
 	}
 	empFile.close();
 
-	deptFile.open(DEPT_INPUT_FILENAME, ios::in);
+	deptFile.open(DEPT_INPUT_FILENAME.c_str(), ios::in);
 	// Create sorted runs for Dept relation
 	while (getline(deptFile, line)) {
 		Dept* d = new Dept();
 		d->parseRow(line);
 		if (mMemory.addDepartment(d) == 0) {
-			string fileName = (string)DEPT_OUTPUT_FILENAME + "r" + to_string(deptRunCount) + ".txt";
-			ofstream outRun(fileName.c_str(), ios::out);
+			ostringstream fileName; 
+			fileName << DEPT_OUTPUT_FILENAME << "r" << deptRunCount << ".txt";
+			ofstream outRun(fileName.str().c_str(), ios::out);
 			mMemory.writeRun(outRun);			
 			outRun.close();
 
-			deptRuns.push_back(new RunPointer(new ifstream(fileName.c_str(), ios::in))); 
+			deptRuns.push_back(new RunPointer(new ifstream(fileName.str().c_str(), ios::in))); 
 			deptRunCount++;
 		}
 	}
 	if (mMemory.getSize() > 0) {
-		string fileName = (string)DEPT_OUTPUT_FILENAME + "r" + to_string(deptRunCount) + ".txt";
-		ofstream outRun(fileName.c_str(), ios::out);
+		ostringstream fileName; 
+		fileName << DEPT_OUTPUT_FILENAME << "r" << deptRunCount << ".txt";
+		ofstream outRun(fileName.str().c_str(), ios::out);
 		mMemory.writeRun(outRun);
 		outRun.close();
 
-		deptRuns.push_back(new RunPointer(new ifstream(fileName.c_str(), ios::in)));
+		deptRuns.push_back(new RunPointer(new ifstream(fileName.str().c_str(), ios::in)));
 		deptRunCount++;
 	}
 	deptFile.close();
 
-	joinFile.open(JOIN_OUTPUT_FILENAME, ios::out);
+	joinFile.open(JOIN_OUTPUT_FILENAME.c_str(), ios::out);
 
 	mMemory.sortMergeJoin(empRuns, deptRuns, joinFile);
 
