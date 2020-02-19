@@ -11,8 +11,8 @@ constexpr int MM_BLOCKS = 22;
 constexpr int MM_BLOCKS_SQRD = 484;
 constexpr char EMP_INPUT_FILENAME[] = "Emp.csv";
 constexpr char DEPT_INPUT_FILENAME[] = "Dept.csv";
-constexpr char EMP_OUTPUT_FILENAME[] = "EmpOut.txt";
-constexpr char DEPT_OUTPUT_FILENAME[] = "DeptOut.txt";
+constexpr char EMP_OUTPUT_FILENAME[] = "EmpOut.";
+constexpr char DEPT_OUTPUT_FILENAME[] = "DeptOut.";
 constexpr char JOIN_OUTPUT_FILENAME[] = "join.csv";
 constexpr char RUN_SEPARATOR[] = "===========";
 using namespace std;
@@ -42,8 +42,6 @@ public:
 		budget = d.budget;
 		id = d.id;
 	}
-
-
 
     void parseRow(string line) {
         string row[4];
@@ -112,6 +110,68 @@ public:
 	}
 };
 
+class RunPointer {
+public:
+	Block* data;
+	ifstream* filePtr;
+
+	RunPointer(ifstream* file) {
+		filePtr = file;
+	}
+
+	~RunPointer() {
+		if (filePtr->is_open()) {
+			filePtr->close();
+			delete filePtr;
+		}
+		delete data;
+	}
+};
+
+void merge(vector<RunPointer*>& mem, int start, int middle, int end) {
+	vector<RunPointer*> leftArray;
+	vector<RunPointer*> rightArray;
+
+	// fill in left Array
+	for (int i = 0; i < middle - start + 1; ++i) 
+		leftArray.push_back(mem[start + i]);
+
+	// fill in right Array
+	for (int j = 0; j < end - middle; ++j)
+		rightArray.push_back(mem[middle + 1 + j]);
+
+	/* Merge the temp Arrays */
+
+	// initial indexes of first and second subArrays
+	int leftIndex = 0, rightIndex = 0;
+
+	// the index we will start at when adding the subArrays back into the main Array
+	int currentIndex = start;
+
+	// compare each index of the subArrays adding the lowest value to the currentIndex
+	while (leftIndex < middle - start + 1 && rightIndex < end - middle) {
+		if (leftArray[leftIndex]->data->id <= rightArray[rightIndex]->data->id) {
+			mem[currentIndex] = leftArray[leftIndex];
+			leftIndex++;
+		}
+		else {
+			mem[currentIndex] = rightArray[rightIndex];
+			rightIndex++;
+		}
+		currentIndex++;
+	}
+
+	// copy remaining elements of leftArray[] if any
+	while (leftIndex < middle - start + 1) {
+		mem[currentIndex++] = leftArray[leftIndex++];
+	}
+
+	// copy remaining elements of rightArray[] if any
+	while (rightIndex < end - middle) {
+		mem[currentIndex++] = rightArray[rightIndex++];
+	}
+}
+
 void merge(vector<Block*>& mem, int start, int middle, int end) {
 	vector<Block*> leftArray;
 	vector<Block*> rightArray;
@@ -132,7 +192,6 @@ void merge(vector<Block*>& mem, int start, int middle, int end) {
 	// the index we will start at when adding the subArrays back into the main Array
 	int currentIndex = start;
 
-	Block* temp;
 	// compare each index of the subArrays adding the lowest value to the currentIndex
 	while (leftIndex < middle - start + 1 && rightIndex < end - middle) {
 		if (leftArray[leftIndex]->id <= rightArray[rightIndex]->id) {
@@ -148,18 +207,17 @@ void merge(vector<Block*>& mem, int start, int middle, int end) {
 
 	// copy remaining elements of leftArray[] if any
 	while (leftIndex < middle - start + 1) {
-		temp = mem[currentIndex];
 		mem[currentIndex++] = leftArray[leftIndex++];
 	}
 
 	// copy remaining elements of rightArray[] if any
 	while (rightIndex < end - middle) {
-		temp = mem[currentIndex];
 		mem[currentIndex++] = rightArray[rightIndex++];
 	}
 }
 
-void mergeSort(vector<Block*>& mem, int start, int end) {
+template <class T>
+void mergeSort(vector<T>& mem, int start, int end) {
 	// base case
 	if (start < end) {
 		// find the middle point
@@ -213,29 +271,113 @@ public:
 		for (int i = 0; i < mem.size(); i++) {
 			outFile << mem[i]->getWritableRow() << endl;
 		}
-		outFile << RUN_SEPARATOR << endl;
 		mem.clear();
     }
-	void mergeAndJoinRuns(int middle, ofstream& outfile) {
 
-		// initial indexes of first and second subArrays
-		int leftIndex = 0, rightIndex = middle;
-
-		// the index we will start at when adding the subArrays back into the main Array
-		int currentIndex = 0;
-
-		// compare each index of the subArrays adding the lowest value to the currentIndex
-		while (leftIndex < middle && rightIndex < mem.size()) {
-			if (mem[leftIndex]->id > mem[rightIndex]->id) {
-				rightIndex++;
+	void getEmployeesFromRuns(vector<RunPointer*>& empRuns) {
+		string empLine;
+		for (int i = 0; i < empRuns.size(); ++i) {
+			if (getline(*(empRuns[i]->filePtr), empLine)) {
+				Emp* e = new Emp();
+				e->parseRow(empLine);
+				empRuns[i]->data = e;
 			}
-			else if (mem[leftIndex]->id < mem[rightIndex]->id) {
-				leftIndex++;
+		}
+	}
+
+	void getDepartmentsFromRuns(vector<RunPointer*>& deptRuns) {
+		string deptLine;
+		for (int i = 0; i < deptRuns.size(); ++i) {
+			if (getline(*(deptRuns[i]->filePtr), deptLine)) {
+				Dept* d = new Dept();
+				d->parseRow(deptLine);
+				deptRuns[i]->data = d;
 			}
-			else {
-				outfile << mem[leftIndex]->getWritableRow() << "," << mem[rightIndex]->getWritableRow() << endl;
-				leftIndex++;
-				rightIndex++;
+		}
+	}
+
+	void clearVectorBlocks(vector<Block*>& blocks) {
+		for (int i = 0; i < blocks.size(); i++) {
+			delete blocks[i];
+		}
+	}
+
+
+	// Create file for each run (with its own file pointer)
+	// Create a vector of file pointers
+	/* for each empid in empPointers
+			sortDeptPointers()
+			for each managerid in deptPointers
+				if empid < managerid
+					incrementEmployeeRunPointer
+				else if empid > managerid
+					incrementRunPointerForDept
+					empPointer--;
+					break
+				else if empid == managerid
+					outputJoin
+					incrementRunPointerForDept
+					managerId--;
+*/
+
+	Block* readNextInRun(ifstream& run, bool employee) {
+		string line;
+		if (getline(run, line)) {
+			if (employee) {
+				Emp* e = new Emp();
+				e->parseRow(line);
+				return e;
+			} else {
+				Dept* d = new Dept();
+				d->parseRow(line);
+				return d;
+			}
+		}
+		return nullptr;
+	}
+
+	void sortMergeJoin(vector<RunPointer*>& empRuns, vector<RunPointer*>& deptRuns, ofstream& joinFile) {
+		string empLine;
+		string deptLine;
+		Block * temp;
+
+		getEmployeesFromRuns(empRuns);
+		getDepartmentsFromRuns(deptRuns);
+		for (int i = 0; i < empRuns.size(); i++) {
+			mergeSort(empRuns, 0, empRuns.size() - 1);
+			for (int k = 0; k < deptRuns.size(); k++) {
+				mergeSort(deptRuns, 0, deptRuns.size() - 1);
+				if (empRuns[i] && deptRuns[k]) {
+					if (empRuns[i]->data->id < deptRuns[k]->data->id) {
+						temp = empRuns[i]->data;
+						empRuns[i]->data = readNextInRun(*empRuns[i]->filePtr, true);
+						delete temp;
+						if (!empRuns[i]->data) {
+							delete empRuns[i];
+							empRuns.erase(empRuns.begin() + i);
+						}
+						i = -1;
+						break;
+					} else if (empRuns[i]->data->id > deptRuns[k]->data->id) {
+						temp = deptRuns[k]->data;
+						deptRuns[k]->data = readNextInRun(*deptRuns[k]->filePtr, false);
+						delete temp;
+						if (!deptRuns[k]) {
+							delete deptRuns[k];
+							deptRuns.erase(deptRuns.begin() + k);
+						}
+					} else {
+						joinFile << empRuns[i]->data->getWritableRow() << "," << deptRuns[k]->data->getWritableRow() << endl;
+						temp = deptRuns[k]->data;
+						deptRuns[k]->data = readNextInRun(*deptRuns[k]->filePtr, false);
+						delete temp;
+						if (!deptRuns[k]) {
+							delete deptRuns[k];
+							deptRuns.erase(deptRuns.begin() + k);
+						}
+						k--;
+					}
+				}
 			}
 		}
 	}
@@ -248,139 +390,82 @@ public:
 
 };
 
-int getAllRuns(const int idx, MainMemory& mem, ifstream& empFile, ifstream& deptFile) {
-	string line;
-	int i = 0;
-
-	// Gets the blocks for empFile that are at index = idx in their runs
-    while (getline(empFile, line)) {
-		if (i == idx) {
-			Emp* e = new Emp();
-
-			e->parseRow(line);
-			// If we are at 11 blocks left, then stop
-			if (mem.addEmployee(e) == MM_BLOCKS / 2) {
-				break;
-			}
-		} else {
-			if (line == RUN_SEPARATOR) {
-				i = 0;
-				continue;
-			} 
-		}
-		++i;
-	}
-	int start = mem.getSize();
-	mem.sortRun(0, mem.getSize() - 1);  
-
-	// Gets the blocks for deptFile that are at index = idx in their runs
-    while (getline(deptFile, line)) {
-		if (i == idx) {
-			Dept* d = new Dept();
-
-			d->parseRow(line);
-			// If we have 1 block left in memory, stop
-			if (mem.addDepartment(d) == 1) {
-				break;
-			}
-		} else {
-			if (line == RUN_SEPARATOR) {
-				i = 0;
-			} else {
-				++i;
-			}
-		}
-	} 
-	mem.sortRun(start, mem.getSize() - 1);
-	return start;	
-}
-
-
-void sortMergeJoin(MainMemory& mem, ifstream& empFile, ifstream& deptFile, ofstream& joinFile, int empCount, int deptCount) {
-    string empLine;
-    string deptLine;
-	
-	int middle = getAllRuns(0, mem, empFile, deptFile);
-	mem.mergeAndJoinRuns(middle, joinFile);
-	
-}
-
-
-// Create file for each run (with its own file pointer)
-// Create a vector of file pointers
-/* for each empid in empPointers
-		sortDeptPointers()
-		for each managerid in deptPointers
-			if empid < managerid
-				incrementEmployeeRunPointer
-			else if empid > managerid
-				incrementRunPointerForDept
-				empPointer--;
-				break
-			else if empid == managerid
-				outputJoin
-				incrementRunPointerForDept
-				managerId--;
-
-
-*/
-
 int main (int argc, char* argv[]) {
 	ifstream empFile;
 	ifstream deptFile;
-	ofstream oEmpFile;
-	ofstream oDeptFile;
 	ofstream joinFile;
 
 	string line;
 	MainMemory mMemory(MM_BLOCKS);
-	int empCount = 0, deptCount = 0;
-
+	vector<RunPointer*> empRuns;
+	vector<RunPointer*> deptRuns;
+	int empRunCount = 0, deptRunCount = 0;
 
 	empFile.open(EMP_INPUT_FILENAME, ios::in);
-	oEmpFile.open(EMP_OUTPUT_FILENAME, ios::out);
+	
 	// Create sorted runs for Emp relation
 	while (getline(empFile, line)) {
-		empCount++;
 		Emp *e = new Emp();
 		e->parseRow(line);
 		if (mMemory.addEmployee(e) == 0) {
-			mMemory.writeRun(oEmpFile);
+			string fileName = (string)EMP_OUTPUT_FILENAME + "r" + to_string(empRunCount) + ".txt";
+			ofstream outRun(fileName.c_str(), ios::out);
+			mMemory.writeRun(outRun);
+			outRun.close();
+
+			empRuns.push_back(new RunPointer(new ifstream(fileName.c_str(), ios::in)));
+			empRunCount++;
 		}
 	}
 	if (mMemory.getSize() > 0) {
-		mMemory.writeRun(oEmpFile);
+		string fileName = (string)EMP_OUTPUT_FILENAME + "r" + to_string(empRunCount) + ".txt";
+		ofstream outRun(fileName.c_str(), ios::out);
+		mMemory.writeRun(outRun);
+		outRun.close();
 
+		empRuns.push_back(new RunPointer(new ifstream(fileName.c_str(), ios::in)));
+		empRunCount++;
 	}
 	empFile.close();
-	oEmpFile.close();
 
 	deptFile.open(DEPT_INPUT_FILENAME, ios::in);
-	oDeptFile.open(DEPT_OUTPUT_FILENAME, ios::out);
 	// Create sorted runs for Dept relation
 	while (getline(deptFile, line)) {
-		deptCount++;
 		Dept* d = new Dept();
 		d->parseRow(line);
 		if (mMemory.addDepartment(d) == 0) {
-			mMemory.writeRun(oDeptFile);
+			string fileName = (string)DEPT_OUTPUT_FILENAME + "r" + to_string(deptRunCount) + ".txt";
+			ofstream outRun(fileName.c_str(), ios::out);
+			mMemory.writeRun(outRun);			
+			outRun.close();
+
+			deptRuns.push_back(new RunPointer(new ifstream(fileName.c_str(), ios::in))); 
+			deptRunCount++;
 		}
 	}
 	if (mMemory.getSize() > 0) {
-		mMemory.writeRun(oDeptFile);
+		string fileName = (string)DEPT_OUTPUT_FILENAME + "r" + to_string(deptRunCount) + ".txt";
+		ofstream outRun(fileName.c_str(), ios::out);
+		mMemory.writeRun(outRun);
+		outRun.close();
+
+		deptRuns.push_back(new RunPointer(new ifstream(fileName.c_str(), ios::in)));
+		deptRunCount++;
 	}
 	deptFile.close();
-	oDeptFile.close();
 
-	// Join and merge runs 
-	empFile.open(EMP_OUTPUT_FILENAME, ios::in);
-	deptFile.open(DEPT_OUTPUT_FILENAME, ios::in);
 	joinFile.open(JOIN_OUTPUT_FILENAME, ios::out);
 
-	sortMergeJoin(mMemory, empFile, deptFile, joinFile, empCount, deptCount);
+	mMemory.sortMergeJoin(empRuns, deptRuns, joinFile);
 
-	empFile.close();
-	deptFile.close();
+	for (int i = 0; i < empRuns.size(); i++) {
+		delete empRuns[i];
+	}
+
+	for (int i = 0; i < deptRuns.size(); i++) {
+		delete deptRuns[i];
+	}
+
 	joinFile.close();
     return 0;
 }
