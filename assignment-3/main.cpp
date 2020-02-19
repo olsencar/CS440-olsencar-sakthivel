@@ -252,8 +252,6 @@ public:
     }
 };
 
-
-
 void createIndex()
 {
     LinearHashTable tab(1);
